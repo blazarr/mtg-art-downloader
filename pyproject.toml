@@ -5,6 +5,9 @@ description = "Mass download MTG card arts using MTG Pics with Scryfall as a bac
 authors = ["MrTeferi <freethoughtleft@gmail.com>"]
 license = "GNU General Public License v3.0"
 
+[[tool.poetry.packages]]
+include = 'src/../'
+
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
 black = "^22.6.0"
