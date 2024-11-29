@@ -14,10 +14,38 @@ from requests import RequestException
 from unidecode import unidecode
 from src import settings as cfg
 from src.constants import console
-from src.fetch import get_cards_paged, get_mtgp_page
+from src.fetch import get_cards_paged, get_mtgp_page, get_data_url
 
 cwd = os.getcwd()
 
+"""
+HELPERS
+"""
+def find_key_values(json_obj, target_key, results=None):
+    """
+    Recursively search a nested JSON object for all occurrences of a specific key
+    and collect their values into a list.
+
+    :param json_obj: The JSON object to search (dict or list).
+    :param target_key: The key to search for.
+    :param results: The list to store the found values (default: None).
+    :return: A list of all values corresponding to the target key.
+    """
+    if results is None:
+        results = []
+
+    if isinstance(json_obj, dict):
+        for key, value in json_obj.items():
+            if key == target_key:
+                results.append(value)
+            if isinstance(value, (dict, list)):
+                find_key_values(value, target_key, results)
+    elif isinstance(json_obj, list):
+        for item in json_obj:
+            if isinstance(item, (dict, list)):
+                find_key_values(item, target_key, results)
+
+    return results
 
 """
 PRE-PROCESS DATA
@@ -87,6 +115,21 @@ def get_list_from_link(command: dict) -> list[dict]:
         cards = cards.get(k, {})
     return cards if isinstance(cards, list) else []
 
+def get_list_from_moxfield(command: str) -> Optional[list]:
+    """
+    Use Moxfield API to return a list
+    @param command: Command string containing mox deck id arguments.
+    @return: Return path to the list file
+    """
+    url = f"https://api.moxfield.com/v2/decks/all/{command}"
+
+    # Query paged results
+    res = get_data_url(url) or {}
+    cards = find_key_values(res.copy(), "card")
+    if not isinstance(cards, list):
+        return []
+
+    return cards
 
 def get_list_from_scryfall(command: str) -> Optional[list]:
     """
@@ -105,7 +148,8 @@ def get_list_from_scryfall(command: str) -> Optional[list]:
     }
 
     # Query paged results
-    return get_cards_paged(query, params=params, keys=["data"])
+    result = get_cards_paged(query, params=params, keys=["data"])
+    return result
 
 
 """

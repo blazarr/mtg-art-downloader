@@ -160,6 +160,7 @@ def get_scryfall_image(url: str, path: str):
         if response.status_code == 200:
             with open(path, "wb") as f:
                 f.write(response.content)
+
             return True
         return False
 

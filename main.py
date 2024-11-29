@@ -5,11 +5,13 @@ APP TO EXECUTE THE SEARCH
 import os
 import re
 import sys
+import subprocess
+from argparse import ArgumentParser
 from functools import cached_property
 from multiprocessing import cpu_count, freeze_support
 from multiprocessing.pool import Pool
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, List
 from time import perf_counter
 from src import card as dl
 from src import settings as cfg
@@ -21,7 +23,9 @@ from src.core import (
     normalize_card_list,
     get_list_from_link,
     get_list_from_scryfall,
+    get_list_from_moxfield,
     get_command,
+    find_key_values
 )
 from src.fetch import (
     get_scryfall_card_named,
@@ -64,12 +68,17 @@ class Download:
     @cached_property
     def cards(self) -> list[Union[dict, str]]:
         """
-        Return a card list either from given command or text file.
+        Return a card list either from given command, moxfield id, or text file.
         """
-        if self.command and ":" in self.command:
+        if self.command and "mox:" in self.command:
+            k, v = self.command.split(":")
+            return get_list_from_moxfield(v)
+        elif self.command and ":" in self.command:
             return get_list_from_scryfall(self.command)
+
         if self.command:
             if link := get_command(self.command):
+                cards = get_list_from_link(link)
                 return normalize_card_list(get_list_from_link(link))
         if isinstance(self._list, list):
             return self._list
@@ -91,7 +100,7 @@ class Download:
     METHODS
     """
 
-    def start(self) -> list[tuple[bool, str]]:
+    def start(self) -> list[tuple[bool, str, str]]:
         """
         Using our card list, generate a download for each card.
         @return: List of tuples, each containing success/fail state and name of the card.
@@ -114,6 +123,8 @@ class Download:
         for res in list(downloads):
             results.extend(res)
 
+        self.upscale(results)
+
         # Output completion time
         if not self.is_test:
             self.complete()
@@ -135,7 +146,23 @@ class Download:
                 else self.download_normal(card)
             )
         console.print(f"Unknown: {str(card)}")
-        return [(False, str(card))]
+        return [(False, str(card), "")]
+
+    def upscale(self, downloads: DownloadResult):
+        if cfg.upscale_exe_path is None:
+            return
+
+        upscale_args = cfg.upscale_exe_args.strip().split()
+        command = [cfg.upscale_exe_path, *upscale_args]
+
+        # Run the subprocess and print output in real-time
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            for line in process.stdout:
+                print(f"{Fore.GREEN}UPSCALER:{Style.RESET_ALL} {line}", end="")
+
+            # Wait for the process to finish and capture the return code
+            process.wait()
+        return
 
     def complete(self):
         """
@@ -256,18 +283,23 @@ if __name__ == "__main__":
     print(" ██╔══██║██╔══██╗   ██║       ██║╚██╗██║██║   ██║██║███╗██║ ")
     print(" ██║  ██║██║  ██║   ██║       ██║ ╚████║╚██████╔╝╚███╔███╔╝ ")
     print(" ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝       ╚═╝  ╚═══╝ ╚═════╝  ╚══╝╚══╝  ")
-    print(f"{Fore.CYAN}{Style.BRIGHT}MTG Art Downloader by Mr Teferi v{version}")
-    print("Additional thanks to Trix are for Scoot, Chilli, and Gikkman")
-    print(f"https://www.patreon.com/mpcfill --- Support our apps!{Style.RESET_ALL}\n")
 
-    # Does the user want to use Google Sheet queries or cards from txt file?
-    choice = input(
-        "Please view the README for detailed instructions.\n"
-        "Cards in cards.txt can either be listed as 'Name' or 'SET--Name'\n"
-        "Full Github and README available at: mprox.link/art-downloader\n"
+    parser = ArgumentParser(
+        prog="MTG Art Downloader",
+        description=(
+            "Please view the README for detailed instructions.\n"
+            "Cards in cards.txt can either be listed as 'Name' or 'SET--Name'\n"
+            "Full Github and README available at: mprox.link/art-downloader\n"
+        )
     )
 
-    # If the command is valid, download based on that, otherwise cards.txt
-    if choice != "":
-        print()  # Add newline gap
-    Download(choice).start()
+    parser.add_argument(
+        "choice",
+        nargs="?",
+        default="",
+        help="Accepts Scryfall query, moxfield deck list or leave blank to load from cards.txt"
+    )
+
+    args = parser.parse_args()
+    results = Download(args.choice).start()
+    print(results)

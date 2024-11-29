@@ -93,3 +93,9 @@ unique = (
 
 # Include extras in search
 include_extras = str(config.getboolean("SEARCH", "Include.Extras", fallback=True))
+
+"""
+UPSCALE SETTINGS
+"""
+upscale_exe_path = config.get("UPSCALE", "Upscale.Exe.Path", fallback=None)
+upscale_exe_args = config.get("UPSCALE", "Upscale.Exe.Args", fallback=None)

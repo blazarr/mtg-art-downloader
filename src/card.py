@@ -36,6 +36,10 @@ class Card:
         self.c = c
         self._promo = False
 
+        template = self.get_template()
+        self.path = template
+        self.path_back = template
+
         # Create download folders if needed
         Path(os.path.join(cfg.mtgp, self.path)).mkdir(
             mode=511, parents=True, exist_ok=True
@@ -84,6 +88,22 @@ class Card:
     @property
     def label(self) -> str:
         return f"{self.name} ({self.set.upper()}) {self.number}"
+
+    @property
+    def frame(self) -> str:
+        return self.c.get("frame", "")
+
+    @property
+    def layout(self) -> str:
+        return self.c.get("layout", "")
+
+    @property
+    def border_color(self) -> str:
+        return self.c.get("border_color", "")
+
+    @property
+    def frame_effects(self) -> list[str]:
+        return self.c.get("frame_effects", [])
 
     @property
     def mtgp_name(self) -> str:
@@ -202,9 +222,9 @@ class Card:
         # Download only scryfall?
         if cfg.only_scryfall:
             if self.download_scryfall(self.scry_url, self.scry_path, self.label):
-                return [(True, self.label)]
+                return [(True, self.label, self.scry_path)]
             log_failed(self.label, action="SCRY")
-            return [(False, self.label)]
+            return [(False, self.label, self.scry_path)]
 
         # Try downloading MTGP
         if not self.download_mtgp(self.mtgp_url, self.mtgp_path, self.label):
@@ -216,12 +236,31 @@ class Card:
                 log_failed(self.label, print_out=False)
             elif logging:
                 log_failed(self.label)
-            return [(False, self.label)]
-        return [(True, self.label)]
+            return [(False, self.label, self.scry_path)]
+        return [(True, self.label, self.mtgp_path)]
+
+    def get_template(self):
+        template_effects = ["enchantment", "miracle", "colorshifted", "extendedart", "etched", "snow"]
+
+        if self.layout == 'token':
+            return 'token'
+        elif self.border_color == 'borderless':
+            return 'borderless'
+        elif self.frame in ('1993', '1995'):
+            return 'classic'
+        elif result := self.find_first_match(self.frame_effects, template_effects):
+            return result
+        else:
+            return 'normal'
+
 
     """
     STATIC METHODS
     """
+    @staticmethod
+    def find_first_match(array1, array2):
+        matches = set(array1) & set(array2)  # Find common elements
+        return next(iter(matches), None)  # Return the first match or None
 
     @staticmethod
     def download_mtgp(
@@ -298,7 +337,7 @@ CARDS WITH TWO NAMES, ONE FACE
 class Adventure(Card):
     """Adventure frame type introduced in Throne of Eldraine."""
 
-    path = "Adventure"
+    path = ""
 
     @property
     def name_saved(self) -> str:
@@ -327,7 +366,7 @@ class Adventure(Card):
 class Flip(Card):
     """Flip card introduced in Champions of Kamigawa."""
 
-    path = "Flip"
+    path = ""
 
     @property
     def name_saved(self) -> str:
@@ -360,8 +399,8 @@ CARDS WITH MULTIPLE IMAGES
 class MDFC(Card):
     """Modal Double Faced frame type introduced in Zendikar Rising."""
 
-    path = "MDFC Front"
-    path_back = "MDFC Back"
+    path = ""
+    path_back = ""
 
     @property
     def name(self) -> str:
@@ -444,7 +483,7 @@ class MDFC(Card):
                 result = self.download_scryfall(
                     scry_url, self.scry_paths[i], self.labels[i]
                 )
-                results.append((result, self.labels[i]))
+                results.append((result, self.labels[i], self.scry_paths[i]))
                 if not result and logging:
                     log_failed(self.labels[i], action="SCRY")
             return results
@@ -462,15 +501,16 @@ class MDFC(Card):
                     log_failed(self.labels[i], print_out=False)
                 elif logging:
                     log_failed(self.labels[i])
-            results.append((result, self.labels[i]))
+            results.append((result, self.labels[i], self.mtgp_paths[i]))
+
         return results
 
 
 class Split(MDFC):
     """Split frame type introduced in Invasion."""
 
-    path = "Split"
-    path_back = "Split"
+    path = ""
+    path_back = ""
 
     @property
     def scry_urls(self) -> list[Optional[str]]:
@@ -489,15 +529,15 @@ class Split(MDFC):
 class Transform(MDFC):
     """Transform frame type introduced in Dark Ascension."""
 
-    path = "TF Front"
-    path_back = "TF Back"
+    path = ""
+    path_back = ""
 
 
 class Reversible(MDFC):
     """Reversible layout type, see 'Heads I Win, Tails You Lose'."""
 
-    path = "Reversible Front"
-    path_back = "Reversible Back"
+    path = ""
+    path_back = ""
 
 
 """
@@ -508,49 +548,49 @@ SIMPLE ARCHETYPES
 class Land(Card):
     """Land card type."""
 
-    path = "Land"
+    path = ""
 
 
 class BasicLand(Card):
     """Basic Land card type."""
 
-    path = "Basic"
+    path = ""
 
 
 class Saga(Card):
     """Saga frame type introduced in Dominaria."""
 
-    path = "Saga"
+    path = ""
 
 
 class Leveler(Card):
     """Level-Up frame type introduced in Rise of the Eldrazi."""
 
-    path = "Leveler"
+    path = ""
 
 
 class Mutate(Card):
     """Mutate frame type introduced in Ikoria."""
 
-    path = "Mutate"
+    path = ""
 
 
 class Planeswalker(Card):
     """Saga frame type introduced in Zendikar."""
 
-    path = "Planeswalker"
+    path = ""
 
 
 class Class(Card):
     """Class frame type introduced in Adventures in the Forgotten Realms."""
 
-    path = "Class"
+    path = ""
 
 
 class Token(Card):
     """Token card type."""
 
-    path = "Token"
+    path = ""
 
 
 class Planar(Card):
@@ -558,7 +598,7 @@ class Planar(Card):
     Planar card
     """
 
-    path = "Planar"
+    path = ""
 
 
 class Meld(Card):
@@ -567,7 +607,7 @@ class Meld(Card):
     Todo: Revisit to treat as Transform.
     """
 
-    path = "Meld"
+    path = ""
 
 
 """

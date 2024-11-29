@@ -2,4 +2,4 @@
 TYPE DEFINITIONS
 """
 
-DownloadResult = list[tuple[bool, str]]
+DownloadResult = list[tuple[bool, str, str]]
