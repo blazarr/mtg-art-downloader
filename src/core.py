@@ -14,7 +14,7 @@ from requests import RequestException
 from unidecode import unidecode
 from src import settings as cfg
 from src.constants import console
-from src.fetch import get_cards_paged, get_mtgp_page, get_data_url
+from src.fetch import get_cards_paged, get_mtgp_page, get_moxfield_url
 
 cwd = os.getcwd()
 
@@ -124,12 +124,22 @@ def get_list_from_moxfield(command: str) -> Optional[list]:
     url = f"https://api.moxfield.com/v2/decks/all/{command}"
 
     # Query paged results
-    res = get_data_url(url) or {}
-    cards = find_key_values(res.copy(), "card")
+    res = get_moxfield_url(url) or {}
+    data = res.copy()
+    cards = find_key_values(data, "card")
+    tokens = [token for token in data['tokens'] if token["isToken"] == True]
+
+    merged_unique = []
+    seen = set()
+    for item in cards + tokens:
+        if item["scryfall_id"] not in seen:
+            seen.add(item["scryfall_id"])
+            merged_unique.append(item)
+
     if not isinstance(cards, list):
         return []
 
-    return cards
+    return [f"{card['name']} ({card['set']}) {card['cn']}" for card in merged_unique]
 
 def get_list_from_scryfall(command: str) -> Optional[list]:
     """

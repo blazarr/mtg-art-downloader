@@ -2,6 +2,7 @@
 SCRYFALL REQUESTS
 """
 import json
+import os
 from typing import Callable, Optional, Any
 
 import requests
@@ -12,6 +13,7 @@ from requests import RequestException
 # RateLimiter objects
 scryfall_rate_limit = RateLimitDecorator(calls=20, period=1)
 mtgp_rate_limit = RateLimitDecorator(calls=20, period=1)
+moxfield_rate_limit = RateLimitDecorator(calls=1, period=1)
 
 
 """
@@ -59,6 +61,24 @@ def handle_scryfall_request(fail_response: Optional[Any] = None) -> Callable:
 
     return decorator
 
+def handle_moxfield_request(fail_response: Optional[Any] = None) -> Callable:
+    """
+    Decorator to handle all Scryfall request failure cases, and return appropriate failure value.
+    @param fail_response: The value to return if request failed entirely.
+    @return: Requested data if successful, fail_response if not.
+    """
+
+    def decorator(func):
+        @sleep_and_retry
+        @moxfield_rate_limit
+        @on_exception(expo, RequestException, max_tries=2, max_time=0.75)
+        @handle_final_exception(fail_response)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 def handle_mtgp_request(fail_response: Optional[Any] = None) -> Callable:
     """
@@ -78,6 +98,26 @@ def handle_mtgp_request(fail_response: Optional[Any] = None) -> Callable:
         return wrapper
 
     return decorator
+
+"""
+MOXFIELD REQUESTS
+"""
+@handle_moxfield_request({})
+def get_moxfield_url(url: str, params: Optional[dict[str, str]] = None) -> dict:
+    """
+    Get JSON data from any valid API URL.
+    @param url: Valid API URL, such as Scryfall.
+    @param params: Params to pass to an API endpoint.
+    @return: JSON data returned.
+    """
+    headers = {
+        "User-Agent": os.getenv("USER_AGENT_SECRET")
+    }
+
+    with requests.get(url, params=(params or {}), headers=headers) as response:
+        if response.status_code == 200:
+            return response.json() or {}
+        return {}
 
 
 """

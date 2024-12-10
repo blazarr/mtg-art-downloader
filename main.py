@@ -72,7 +72,7 @@ class Download:
         """
         if self.command and "mox:" in self.command:
             k, v = self.command.split(":")
-            return get_list_from_moxfield(v)
+            return normalize_card_list(get_list_from_moxfield(v))
         elif self.command and ":" in self.command:
             return get_list_from_scryfall(self.command)
 
@@ -300,6 +300,12 @@ if __name__ == "__main__":
         help="Accepts Scryfall query, moxfield deck list or leave blank to load from cards.txt"
     )
 
+    parser.add_argument(
+        "-ua", "--user-agent",
+        required=True,
+        help="Moxfield user agent"
+    )
+
     args = parser.parse_args()
-    results = Download(args.choice).start()
-    print(results)
+    os.environ["USER_AGENT_SECRET"] = args.user_agent
+    Download(args.choice).start()
