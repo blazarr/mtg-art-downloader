@@ -123,7 +123,7 @@ class Download:
         for res in list(downloads):
             results.extend(res)
 
-        self.upscale(results)
+        # self.upscale(results)
 
         # Output completion time
         if not self.is_test:
