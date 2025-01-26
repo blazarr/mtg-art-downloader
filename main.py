@@ -123,7 +123,7 @@ class Download:
         for res in list(downloads):
             results.extend(res)
 
-        self.upscale(results)
+        self.upscale()
 
         # Output completion time
         if not self.is_test:
@@ -148,7 +148,7 @@ class Download:
         console.print(f"Unknown: {str(card)}")
         return [(False, str(card), "")]
 
-    def upscale(self, downloads: DownloadResult):
+    def upscale(self):
         if cfg.upscale_exe_path is None:
             return
 
@@ -168,7 +168,6 @@ class Download:
         """
         Tell the user the download process is complete.
         """
-        console.print(f"Downloads finished in {self.time} seconds!")
         console.print(
             "\nAll available files downloaded.\n"
             "See failed.txt for images that couldn't be located.\n"
@@ -306,6 +305,13 @@ if __name__ == "__main__":
         help="Moxfield user agent"
     )
 
+    parser.add_argument(
+        "--archive",
+        required=False,
+        help="Path to the image archive (e.g., 'card-archive.zip')."
+    )
+
     args = parser.parse_args()
     os.environ["USER_AGENT_SECRET"] = args.user_agent
+    os.environ["CARD_ARCHIVE_PATH"] = args.archive
     Download(args.choice).start()

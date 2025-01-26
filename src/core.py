@@ -3,6 +3,7 @@ CORE FUNCTIONS
 """
 import json
 import os
+import zipfile
 from typing import Optional, Union
 
 import requests
@@ -15,6 +16,7 @@ from unidecode import unidecode
 from src import settings as cfg
 from src.constants import console
 from src.fetch import get_cards_paged, get_mtgp_page, get_moxfield_url
+from src import card as dl
 
 cwd = os.getcwd()
 
@@ -139,6 +141,9 @@ def get_list_from_moxfield(command: str) -> Optional[list]:
     if not isinstance(cards, list):
         return []
 
+    if os.environ['CARD_ARCHIVE_PATH']:
+        merged_unique = filter_files_from_zip(os.environ['CARD_ARCHIVE_PATH'], merged_unique)
+
     return [f"{card['name']} ({card['set']}) {card['cn']}" for card in merged_unique]
 
 def get_list_from_scryfall(command: str) -> Optional[list]:
@@ -159,6 +164,8 @@ def get_list_from_scryfall(command: str) -> Optional[list]:
 
     # Query paged results
     result = get_cards_paged(query, params=params, keys=["data"])
+    if os.environ['CARD_ARCHIVE_PATH']:
+        result = filter_files_from_zip(os.environ['CARD_ARCHIVE_PATH'], result)
     return result
 
 
@@ -375,3 +382,46 @@ def log_failed(
             f.write(f"{label}\n")
     if print_out:
         console.print(f"{Fore.RED}{action} FAILED:{Style.RESET_ALL} {label}")
+
+"""
+FILTER FUNCTIONS
+"""
+def filter_files_from_zip(zip_path, cards: list[dict]):
+    if not os.path.exists(zip_path):
+        raise FileNotFoundError(f"Card archive '{zip_path}' does not exist.")
+
+    # Open the ZIP archive
+    with zipfile.ZipFile(zip_path, 'r') as zip_file:
+        # Get a list of all files in the ZIP archive
+        zip_file_basenames = {os.path.splitext(os.path.basename(f))[0] for f in zip_file.namelist()}
+
+        # Filter out dictionaries whose filenames exist in the ZIP archive
+        filtered_list = [
+            card for card in cards
+            if not is_card_in_zip(card, zip_file_basenames)
+        ]
+
+    return filtered_list
+
+def is_card_in_zip(card, zip_file_basenames):
+    # Try to download the card
+    card_class = dl.get_card_class(card)
+    name = getattr(card_class(card), "name_saved", None) or card_class(card).name
+    name_back = getattr(card_class(card), "name_back", None)
+
+    renders = [name]
+    if name_back and card['layout'] != 'adventure':
+      renders.append(name_back)
+
+    return all(is_render_in_zip(render, card, zip_file_basenames) for render in renders)
+
+def is_render_in_zip(render,card, zip_file_basenames):
+    # Step 1: Construct the card's filename
+    card_number = card.get('cn') or card.get('collector_number')
+
+    card_number_digits = ''.join(char for char in card_number if char.isdigit())  # Extract numeric part
+
+    constructed_name = f"{render} [{card['set'].upper()}] {{{int(card_number_digits)}}}"
+
+    # Step 2: Check if constructed name is in the zip base names
+    return constructed_name in zip_file_basenames
