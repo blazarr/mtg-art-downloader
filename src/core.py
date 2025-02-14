@@ -129,6 +129,10 @@ def get_list_from_moxfield(command: str) -> Optional[list]:
     res = get_moxfield_url(url) or {}
     data = res.copy()
     cards = find_key_values(data, "card")
+
+    if not cards:
+        return []
+
     tokens = [token for token in data['tokens'] if token["isToken"] == True]
 
     merged_unique = []
